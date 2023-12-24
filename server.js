@@ -31,7 +31,7 @@ const client = new Client({
 
 // index routing and middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: false }));
 app.get("/", (req, res) => {
   res.sendFile("index.html", { root: __dirname });
 });
@@ -54,6 +54,7 @@ io.on("connection", (socket) => {
 
   client.on("ready", () => {
     socket.emit("message", `${now} WhatsApp is ready!`);
+    socket.emit("ready", true);
 
     client
       .sendMessage("6281295908062@c.us", "Berhasil Terkoneksi")
@@ -98,18 +99,23 @@ app.post("/send", (req, res) => {
 
   if (client.info === undefined) {
     console.log("the system is not ready yet");
+    res.status(500);
   } else {
-    setTimeout(() => {
-      client
-        .sendMessage(`${phone}@c.us`, message)
-        .then((response) => {
-          res.status(200).json(response);
-        })
-        .catch((error) => {
-          res.status(500).json(error);
-          console.log("error => ", error);
-        });
-    }, 500);
+
+    phone.split(',').map((number)=>{
+      setTimeout(() => {
+        client
+          .sendMessage(`${number}@c.us`, message)
+          .then((response) => {
+            console.log('sent message to ', response.to);
+          })
+          .catch((error) => {
+            console.log("error => ", error);
+          });
+      }, 1000);
+    });
+
+    res.status(200);
   }
 });
 
