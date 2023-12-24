@@ -4,6 +4,7 @@ const express = require("express");
 const qrcode = require("qrcode");
 const socketIO = require("socket.io");
 const http = require("http");
+const bodyParser = require("body-parser");
 
 // initial instance
 const PORT = process.env.PORT || 8000;
@@ -15,8 +16,16 @@ const client = new Client({
   restartOnAuthFail: true,
   authStrategy: new LocalAuth(),
   puppeteer: {
-    headless: true,
-    args: ["--no-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--no-zygote",
+      "--single-process", // <- this one doesn't works in Windows
+      "--disable-gpu",
+    ],
   },
 });
 
@@ -49,8 +58,7 @@ io.on("connection", (socket) => {
     client
       .sendMessage("6281295908062@c.us", "Berhasil Terkoneksi")
       .then((response) => {
-        console.log(response.body + response.to);
-        socket.emit("message", `${now} Connection message sent`);
+        console.log(response.body + " " + response.to);
       })
       .catch((error) => {
         console.log(error);
@@ -77,6 +85,32 @@ io.on("connection", (socket) => {
     client.destroy();
     client.initialize();
   });
+
+  client.on("message_create",function(){
+    socket.emit("message",`${now} message was sent`);
+  })
+});
+
+// send message routing
+app.post("/send", (req, res) => {
+  const phone = req.body.phone;
+  const message = req.body.message;
+
+  if (client.info === undefined) {
+    console.log("the system is not ready yet");
+  } else {
+    setTimeout(() => {
+      client
+        .sendMessage(`${phone}@c.us`, message)
+        .then((response) => {
+          res.status(200).json(response);
+        })
+        .catch((error) => {
+          res.status(500).json(error);
+          console.log("error => ", error);
+        });
+    }, 500);
+  }
 });
 
 server.listen(PORT, () => {
