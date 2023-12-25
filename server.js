@@ -49,6 +49,7 @@ function now() {
 io.on("connection", (socket) => {
   console.log(now(), "socket connected");
   socket.emit("message", `${now()} Connected`);
+
   client.initialize();
 
   if (socket.info === undefined) {
@@ -80,31 +81,35 @@ io.on("connection", (socket) => {
   });
 
   client.on("authenticated", (session) => {
-    console.log(now(), "whatsapp authenticated");
+    console.log(now(), "Whatsapp authenticated");
     socket.emit("message", `${now()} Whatsapp is authenticated!`);
   });
 
   client.on("auth_failure", function (session) {
-    console.log(now(), "whatsapp failure auth");
+    console.log(now(), "Whatsapp failure auth");
     socket.emit("message", `${now()} Auth failure, restarting...`);
   });
 
   client.on("disconnected", function () {
-    console.log(now(), "whatsapp disconnected");
+    console.log(now(), "Whatsapp Disconnected");
+
     socket.emit("message", `${now()} Disconnected`);
     socket.emit("ready", false);
+    
     client.destroy();
     client.initialize();
   });
 
   client.on("message_create", function (res) {
-    console.log(now(), "message was sent to ", res.to);
+    console.log(now(), "Message was sent to ", res.to);
     socket.emit("message", `${now()} message was sent to ${res.to}`);
   });
 });
 
 // send message routing
 app.post("/send", upload.single("excelFile"), (req, res) => {
+  console.log(now(), "!!!New blast request!!!");
+
   if (!req.file || !req.file.buffer) {
     console.log(now(), "no file found when send message");
     return res.status(400).send("Tidak ada file yang diunggah");
@@ -117,25 +122,36 @@ app.post("/send", upload.single("excelFile"), (req, res) => {
 
   const message = req.body.message;
 
-  console.log(now(), "data =>", data);
-  console.log(now(), "message =>", message);
+  console.log(now(), "Numbers =>", data);
+  console.log(now(), "Message =>", message);
 
   if (client.info === undefined) {
-    console.log(now(), "the system is not ready yet");
+    console.log(now(), "The system is not ready yet");
     return res.status(500);
   } else {
     let message_data = [];
 
     data.forEach((item) => {
-      const number = item.nomor;
-      const nama = item.nama;
-      const msg = message.replace("{{nama}}", nama);
+      if (typeof item.nomer != "string") {
+        number = item.nomor.toString();
+      } else {
+        number = item.nomor;
+      }
+
+      const name = item.nama;
+      const msg = message.replaceAll("{{nama}}", name);
 
       client
-        .sendMessage(`${number}@c.us`, msg)
+        .sendMessage(
+          `${number
+            .replaceAll("+", "")
+            .replaceAll(" ", "")
+            .replaceAll("-", "")}@c.us`,
+          msg
+        )
         .then((response) => {
           message_data.push({
-            name: nama,
+            name: name,
             number: number,
             message: msg,
             status: true,
@@ -143,15 +159,15 @@ app.post("/send", upload.single("excelFile"), (req, res) => {
         })
         .catch((error) => {
           message_data.push({
-            name: nama,
+            name: name,
             number: number,
             message: msg,
             status: false,
           });
           console.log(now(), "error => ", error);
-        })
+        });
     });
-    
+
     return res.status(200).json(message_data);
   }
 });
@@ -163,5 +179,5 @@ app.post("/logout", (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log("App listen on port ", PORT);
+  console.log(now(), "App listen on port ", PORT);
 });
