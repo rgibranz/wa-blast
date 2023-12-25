@@ -46,11 +46,11 @@ function now() {
   return now;
 }
 
+client.initialize();
+
 io.on("connection", (socket) => {
   console.log(now(), "socket connected");
   socket.emit("message", `${now()} Connected`);
-
-  client.initialize();
 
   if (socket.info === undefined) {
     socket.emit("ready", false);
