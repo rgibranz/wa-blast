@@ -47,6 +47,7 @@ function now() {
 }
 
 io.on("connection", (socket) => {
+  console.log(now(), "socket connected");
   socket.emit("message", `${now()} Connected`);
   client.initialize();
 
@@ -58,6 +59,7 @@ io.on("connection", (socket) => {
 
   client.on("qr", (qr) => {
     qrcode.toDataURL(qr, (err, url) => {
+      console.log(now(), "qrcode ready");
       socket.emit("qr", url);
       socket.emit("message", `${now()} QR Code received`);
     });
@@ -72,20 +74,23 @@ io.on("connection", (socket) => {
 
   client.on("message", (msg) => {
     if (msg.body == "p" || msg.body == "P") {
-      msg.reply("Iyaa");
+      msg.reply("Oitt,, Kenapa....");
     }
     socket.emit("message", `${now()} Message from ${msg.from}`);
   });
 
   client.on("authenticated", (session) => {
+    console.log(now(), "whatsapp authenticated");
     socket.emit("message", `${now()} Whatsapp is authenticated!`);
   });
 
   client.on("auth_failure", function (session) {
+    console.log(now(), "whatsapp failure auth");
     socket.emit("message", `${now()} Auth failure, restarting...`);
   });
 
   client.on("disconnected", function () {
+    console.log(now(), "whatsapp disconnected");
     socket.emit("message", `${now()} Disconnected`);
     socket.emit("ready", false);
     client.destroy();
@@ -93,13 +98,15 @@ io.on("connection", (socket) => {
   });
 
   client.on("message_create", function (res) {
-    socket.emit("message", `${now()} message was sent to ${msg.to}`);
+    console.log(now(), "message was sent to ", res.to);
+    socket.emit("message", `${now()} message was sent to ${res.to}`);
   });
 });
 
 // send message routing
 app.post("/send", upload.single("excelFile"), (req, res) => {
   if (!req.file || !req.file.buffer) {
+    console.log(now(), "no file found when send message");
     return res.status(400).send("Tidak ada file yang diunggah");
   }
 
@@ -110,31 +117,42 @@ app.post("/send", upload.single("excelFile"), (req, res) => {
 
   const message = req.body.message;
 
-  console.log("data =>", data);
-  console.log("message =>", message);
+  console.log(now(), "data =>", data);
+  console.log(now(), "message =>", message);
 
   if (client.info === undefined) {
-    console.log("the system is not ready yet");
+    console.log(now(), "the system is not ready yet");
     return res.status(500);
   } else {
+    let message_data = [];
+
     data.forEach((item) => {
       const number = item.nomor;
       const nama = item.nama;
       const msg = message.replace("{{nama}}", nama);
 
-      setTimeout(() => {
-        client
-          .sendMessage(`${number}@c.us`, msg)
-          .then((response) => {
-            console.log("sent message to ", response.to);
-          })
-          .catch((error) => {
-            console.log("error => ", error);
+      client
+        .sendMessage(`${number}@c.us`, msg)
+        .then((response) => {
+          message_data.push({
+            name: nama,
+            number: number,
+            message: msg,
+            status: true,
           });
-      }, 1000);
+        })
+        .catch((error) => {
+          message_data.push({
+            name: nama,
+            number: number,
+            message: msg,
+            status: false,
+          });
+          console.log(now(), "error => ", error);
+        })
     });
-
-    return res.status(200).send("Data sudah dikirim");
+    
+    return res.status(200).json(message_data);
   }
 });
 
