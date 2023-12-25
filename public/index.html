@@ -53,27 +53,27 @@
           <div class="message-section" style="display: none">
             <h2 class="text-center">Send Message</h2>
             <form
-              action="/send"
-              method="post"
-              enctype="application/x-www-form-urlencoded"
+              enctype="multipart/form-data"
               class="message-form"
             >
               <div class="form-group">
-                <label for="">Phone Number</label>
+                <label for="">File Excel</label>
                 <input
-                  type="text"
-                  name="phone"
-                  id="phone"
+                  type="file"
+                  name="excelFile"
+                  id="excelFileInput"
                   class="form-control"
+                  required
                 />
               </div>
               <div class="form-group">
-                <label for="">Phone Message</label>
+                <label for="">Pesan</label>
                 <textarea
                   name="message"
                   id="message"
                   rows="5"
                   class="form-control"
+                  required
                 ></textarea>
               </div>
               <button class="btn btn-sm btn-primary" type="submit">
@@ -133,18 +133,22 @@
           }
         });
 
-        $(".message-form").on("click", function () {
+        $(".message-form").on("submit", function () {
           event.preventDefault();
 
-          const formData = {
-            phone: $(".message-form input[name=phone]").val(),
-            message: $(".message-form textarea[name=message]").val(),
-          };
+          const fileInput = $('#excelFileInput')[0].files[0];
+          const message = $('')
+          const formData = new FormData();
+
+          formData.append('excelFile',fileInput);
+          formData.append('message',$("#message").val());
 
           $.ajax({
             url: "/send",
             method: "POST",
             data: formData,
+            contentType: false,
+            processData: false,
             success: function () {
               $(".message-form").trigger("reset");
             },  

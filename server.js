@@ -4,7 +4,9 @@ const express = require("express");
 const qrcode = require("qrcode");
 const socketIO = require("socket.io");
 const http = require("http");
-const bodyParser = require("body-parser");
+const ExcelJS = require("exceljs");
+const multer = require("multer");
+const xlsx = require("xlsx");
 
 // initial instance
 const PORT = process.env.PORT || 8000;
@@ -29,31 +31,38 @@ const client = new Client({
   },
 });
 
+const upload = multer();
+app.use(express.static("public"));
+
 // index routing and middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.get("/", (req, res) => {
-  res.sendFile("index.html", { root: __dirname });
+  res.sendFile("public/index.html", { root: __dirname });
 });
 
-client.initialize();
-
-// socket connection
-var today = new Date();
-var now = today.toLocaleString();
+function now() {
+  // socket connection
+  let today = new Date();
+  let now = today.toLocaleString();
+  return now;
+}
 
 io.on("connection", (socket) => {
-  socket.emit("message", `${now} Connected`);
+  socket.emit("message", `${now()} Connected`);
+  socket.emit("ready", false);
+
+  client.initialize();
 
   client.on("qr", (qr) => {
     qrcode.toDataURL(qr, (err, url) => {
       socket.emit("qr", url);
-      socket.emit("message", `${now} QR Code received`);
+      socket.emit("message", `${now()} QR Code received`);
     });
   });
 
   client.on("ready", () => {
-    socket.emit("message", `${now} WhatsApp is ready!`);
+    socket.emit("message", `${now()} WhatsApp is ready!`);
     socket.emit("ready", true);
 
     client
@@ -64,59 +73,85 @@ io.on("connection", (socket) => {
       .catch((error) => {
         console.log(error);
       });
+
+    console.log(`${now()} Client is Ready`);
   });
 
   client.on("message", (msg) => {
     if (msg.body == "p" || msg.body == "P") {
       msg.reply("Iyaa");
     }
-    socket.emit("message", `${now} Message from ${msg.from}`);
+    socket.emit("message", `${now()} Message from ${msg.from}`);
   });
 
   client.on("authenticated", (session) => {
-    socket.emit("message", `${now} Whatsapp is authenticated!`);
+    socket.emit("message", `${now()} Whatsapp is authenticated!`);
   });
 
   client.on("auth_failure", function (session) {
-    socket.emit("message", `${now} Auth failure, restarting...`);
+    socket.emit("message", `${now()} Auth failure, restarting...`);
   });
 
   client.on("disconnected", function () {
-    socket.emit("message", `${now} Disconnected`);
+    socket.emit("message", `${now()} Disconnected`);
+    socket.emit("ready", false);
     client.destroy();
     client.initialize();
   });
 
-  client.on("message_create",function(){
-    socket.emit("message",`${now} message was sent`);
-  })
-});
+  client.on("message_create", function (res) {
+    socket.emit("message", `${now()} message was sent to ${msg.to}`);
+  });
 
-// send message routing
-app.post("/send", (req, res) => {
-  const phone = req.body.phone;
-  const message = req.body.message;
+  // send message routing
+  app.post("/send", upload.single("excelFile"), (req, res) => {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).send("Tidak ada file yang diunggah");
+    }
 
-  if (client.info === undefined) {
-    console.log("the system is not ready yet");
-    res.status(500);
-  } else {
+    const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0]; // Mengambil nama sheet pertama
+    const sheet = workbook.Sheets[sheetName];
+    const data = xlsx.utils.sheet_to_json(sheet);
 
-    phone.split(',').map((number)=>{
-      setTimeout(() => {
-        client
-          .sendMessage(`${number}@c.us`, message)
-          .then((response) => {
-            console.log('sent message to ', response.to);
-          })
-          .catch((error) => {
-            console.log("error => ", error);
-          });
-      }, 1000);
-    });
+    const message = req.body.message;
+
+    console.log("data =>", data);
+    console.log("message =>", message);
 
     res.status(200);
-  }
+    if (client.info === undefined) {
+      console.log("the system is not ready yet");
+      res.status(500);
+    } else {
+      data.forEach((item) => {
+        const number = item.nomor;
+        const nama = item.nama;
+        const msg = message.replace("{{nama}}", nama);
+
+        setTimeout(() => {
+          client
+            .sendMessage(`${number}@c.us`, msg)
+            .then((response) => {
+              console.log("sent message to ", response.to);
+            })
+            .catch((error) => {
+              console.log("error => ", error);
+            });
+        }, 1000);
+      });
+
+      res.status(200).send("Data sudah dikirim");
+    }
+  });
+
+  // logout whatsapp routing
+  app.post("/logout", (req, res) => {
+    client.logout();
+    client.destroy();
+    client.initialize();
+    res.status(200);
+  });
 });
 
 server.listen(PORT, () => {
