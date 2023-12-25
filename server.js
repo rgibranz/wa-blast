@@ -41,8 +41,9 @@ app.get("/", (req, res) => {
 
 function now() {
   // socket connection
-  let today = new Date();
-  let now = today.toLocaleString();
+  const now = new Date().toLocaleString('en-US', {
+    timeZone: 'Asia/Jakarta'
+  });
   return now;
 }
 
