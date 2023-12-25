@@ -1,10 +1,8 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
-const fs = require("fs");
 const express = require("express");
 const qrcode = require("qrcode");
 const socketIO = require("socket.io");
 const http = require("http");
-const ExcelJS = require("exceljs");
 const multer = require("multer");
 const xlsx = require("xlsx");
 
@@ -50,9 +48,13 @@ function now() {
 
 io.on("connection", (socket) => {
   socket.emit("message", `${now()} Connected`);
-  socket.emit("ready", false);
-
   client.initialize();
+
+  if (socket.info === undefined) {
+    socket.emit("ready", false);
+  } else {
+    socket.emit("ready", true);
+  }
 
   client.on("qr", (qr) => {
     qrcode.toDataURL(qr, (err, url) => {
@@ -64,15 +66,6 @@ io.on("connection", (socket) => {
   client.on("ready", () => {
     socket.emit("message", `${now()} WhatsApp is ready!`);
     socket.emit("ready", true);
-
-    client
-      .sendMessage("6281295908062@c.us", "Berhasil Terkoneksi")
-      .then((response) => {
-        console.log(response.body + " " + response.to);
-      })
-      .catch((error) => {
-        console.log(error);
-      });
 
     console.log(`${now()} Client is Ready`);
   });
@@ -102,56 +95,53 @@ io.on("connection", (socket) => {
   client.on("message_create", function (res) {
     socket.emit("message", `${now()} message was sent to ${msg.to}`);
   });
+});
 
-  // send message routing
-  app.post("/send", upload.single("excelFile"), (req, res) => {
-    if (!req.file || !req.file.buffer) {
-      return res.status(400).send("Tidak ada file yang diunggah");
-    }
+// send message routing
+app.post("/send", upload.single("excelFile"), (req, res) => {
+  if (!req.file || !req.file.buffer) {
+    return res.status(400).send("Tidak ada file yang diunggah");
+  }
 
-    const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0]; // Mengambil nama sheet pertama
-    const sheet = workbook.Sheets[sheetName];
-    const data = xlsx.utils.sheet_to_json(sheet);
+  const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+  const sheetName = workbook.SheetNames[0]; // Mengambil nama sheet pertama
+  const sheet = workbook.Sheets[sheetName];
+  const data = xlsx.utils.sheet_to_json(sheet);
 
-    const message = req.body.message;
+  const message = req.body.message;
 
-    console.log("data =>", data);
-    console.log("message =>", message);
+  console.log("data =>", data);
+  console.log("message =>", message);
 
-    res.status(200);
-    if (client.info === undefined) {
-      console.log("the system is not ready yet");
-      res.status(500);
-    } else {
-      data.forEach((item) => {
-        const number = item.nomor;
-        const nama = item.nama;
-        const msg = message.replace("{{nama}}", nama);
+  if (client.info === undefined) {
+    console.log("the system is not ready yet");
+    return res.status(500);
+  } else {
+    data.forEach((item) => {
+      const number = item.nomor;
+      const nama = item.nama;
+      const msg = message.replace("{{nama}}", nama);
 
-        setTimeout(() => {
-          client
-            .sendMessage(`${number}@c.us`, msg)
-            .then((response) => {
-              console.log("sent message to ", response.to);
-            })
-            .catch((error) => {
-              console.log("error => ", error);
-            });
-        }, 1000);
-      });
+      setTimeout(() => {
+        client
+          .sendMessage(`${number}@c.us`, msg)
+          .then((response) => {
+            console.log("sent message to ", response.to);
+          })
+          .catch((error) => {
+            console.log("error => ", error);
+          });
+      }, 1000);
+    });
 
-      res.status(200).send("Data sudah dikirim");
-    }
-  });
+    return res.status(200).send("Data sudah dikirim");
+  }
+});
 
-  // logout whatsapp routing
-  app.post("/logout", (req, res) => {
-    client.logout();
-    client.destroy();
-    client.initialize();
-    res.status(200);
-  });
+// logout whatsapp routing
+app.post("/logout", (req, res) => {
+  client.logout();
+  return res.status(200);
 });
 
 server.listen(PORT, () => {

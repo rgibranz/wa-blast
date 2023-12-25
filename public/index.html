@@ -33,6 +33,23 @@
         >
           <span class="navbar-toggler-icon"></span>
         </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav mr-auto">
+            <li class="nav-item active">
+              <a class="nav-link" href="#">Beranda</a>
+            </li>
+            <!-- Tambahkan item-menu lainnya di sini -->
+          </ul>
+          <form id="logoutForm" class="form-inline my-2 my-lg-0">
+            <button
+              id="logoutButton"
+              class="btn btn-outline-danger my-2 my-sm-0"
+              type="submit"
+            >
+              Logout
+            </button>
+          </form>
+        </div>
       </div>
     </nav>
 
@@ -52,10 +69,7 @@
           </div>
           <div class="message-section" style="display: none">
             <h2 class="text-center">Send Message</h2>
-            <form
-              enctype="multipart/form-data"
-              class="message-form"
-            >
+            <form enctype="multipart/form-data" class="message-form">
               <div class="form-group">
                 <label for="">File Excel</label>
                 <input
@@ -115,6 +129,23 @@
         var socket = io();
         var logsEl = $("#logs");
 
+        $("#logoutForm").submit(function (event) {
+          event.preventDefault(); // Menghentikan pengiriman form
+
+          $.ajax({
+            url: "/logout", // Ubah sesuai dengan endpoint logout Anda
+            type: "POST",
+            success: function (response) {
+              // Tambahkan logika atau respons setelah logout di sini
+              console.log(response);
+            },
+            error: function (xhr, status, error) {
+              console.error(error);
+              // Tambahkan penanganan kesalahan jika diperlukan
+            },
+          });
+        });
+
         socket.on("message", function (msg) {
           logsEl.append($("<li>").text(msg));
         });
@@ -136,12 +167,12 @@
         $(".message-form").on("submit", function () {
           event.preventDefault();
 
-          const fileInput = $('#excelFileInput')[0].files[0];
-          const message = $('')
+          const fileInput = $("#excelFileInput")[0].files[0];
+          const message = $("");
           const formData = new FormData();
 
-          formData.append('excelFile',fileInput);
-          formData.append('message',$("#message").val());
+          formData.append("excelFile", fileInput);
+          formData.append("message", $("#message").val());
 
           $.ajax({
             url: "/send",
@@ -151,7 +182,7 @@
             processData: false,
             success: function () {
               $(".message-form").trigger("reset");
-            },  
+            },
           });
         });
       });
