@@ -41,8 +41,8 @@ app.get("/", (req, res) => {
 
 function now() {
   // socket connection
-  const now = new Date().toLocaleString('en-US', {
-    timeZone: 'Asia/Jakarta'
+  const now = new Date().toLocaleString("en-US", {
+    timeZone: "Asia/Jakarta",
   });
   return now;
 }
@@ -96,7 +96,7 @@ io.on("connection", (socket) => {
 
     socket.emit("message", `${now()} Disconnected`);
     socket.emit("ready", false);
-    
+
     client.destroy();
     client.initialize();
   });
@@ -131,45 +131,57 @@ app.post("/send", upload.single("excelFile"), (req, res) => {
     return res.status(500);
   } else {
     let message_data = [];
+    let index = 0;
 
-    data.forEach((item) => {
-      if (typeof item.nomer != "string") {
-        number = item.nomor.toString();
+    const sendMessages = () => {
+      if (index < data.length) {
+        const item = data[index];
+
+        let number;
+        if (typeof item.nomor !== "string") {
+          number = item.nomor.toString();
+        } else {
+          number = item.nomor;
+        }
+
+        const name = item.nama;
+        const msg = message.replaceAll("{{nama}}", name);
+
+        client
+          .sendMessage(
+            `${number
+              .replaceAll("+", "")
+              .replaceAll(" ", "")
+              .replaceAll("-", "")}@c.us`,
+            msg
+          )
+          .then((response) => {
+            message_data.push({
+              name: name,
+              number: number,
+              message: msg,
+              status: true,
+            });
+            index++;
+            setTimeout(sendMessages, 10000); // Memanggil sendMessages setiap 10 detik
+          })
+          .catch((error) => {
+            message_data.push({
+              name: name,
+              number: number,
+              message: msg,
+              status: false,
+            });
+            console.log(now(), "error => ", error);
+            index++;
+            setTimeout(sendMessages, 10000); // Memanggil sendMessages setiap 10 detik
+          });
       } else {
-        number = item.nomor;
+        return res.status(200).json(message_data);
       }
+    };
 
-      const name = item.nama;
-      const msg = message.replaceAll("{{nama}}", name);
-
-      client
-        .sendMessage(
-          `${number
-            .replaceAll("+", "")
-            .replaceAll(" ", "")
-            .replaceAll("-", "")}@c.us`,
-          msg
-        )
-        .then((response) => {
-          message_data.push({
-            name: name,
-            number: number,
-            message: msg,
-            status: true,
-          });
-        })
-        .catch((error) => {
-          message_data.push({
-            name: name,
-            number: number,
-            message: msg,
-            status: false,
-          });
-          console.log(now(), "error => ", error);
-        });
-    });
-
-    return res.status(200).json(message_data);
+    sendMessages(); // Memulai proses pengiriman pesan
   }
 });
 
